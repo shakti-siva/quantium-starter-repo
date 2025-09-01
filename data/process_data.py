@@ -9,20 +9,23 @@ for file in files:
     df = pd.read_csv(file)
     
     # Step 2: Keep only Pink Morsels
-    df = df[df["product"] == "pink morsel"]
+    df = df[df["product"] == "pink morsel"].copy()
     
-    # Step 3: Create sales column (quantity * price)
+    # Step 3: Clean price column (remove $ and convert to float)
+    df["price"] = df["price"].replace('[\$,]', '', regex=True).astype(float)
+    
+    # Step 4: Create sales column (quantity * price)
     df["sales"] = df["quantity"] * df["price"]
     
-    # Step 4: Keep only relevant columns
+    # Step 5: Keep only relevant columns
     df = df[["sales", "date", "region"]]
     
     df_list.append(df)
 
-# Step 5: Combine into one dataframe
+# Step 6: Combine into one dataframe
 final_df = pd.concat(df_list)
 
-# Step 6: Save to CSV
+# Step 7: Save to CSV
 final_df.to_csv("sales.csv", index=False)
 
 print("✅ Processed data saved to sales.csv")
