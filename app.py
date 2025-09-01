@@ -1,123 +1,72 @@
-import pandas as pd
-from dash import Dash, dcc, html, Input, Output
+import dash
+from dash import dcc, html, Input, Output
 import plotly.express as px
+import pandas as pd
 
-# -----------------------------
-# Load & clean data
-# -----------------------------
-df = pd.read_csv("sales.csv")
+# Load your processed sales data
+df = pd.read_csv("data/processed_sales.csv", parse_dates=["date"])
 
-# Clean sales column
-df["sales"] = df["sales"].astype(str).str.replace("$", "", regex=False)
-df["sales"] = pd.to_numeric(df["sales"], errors="coerce")
+# Initialize Dash app
+app = dash.Dash(__name__)
 
-# Convert date
-df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-# Drop invalid rows
-df = df.dropna(subset=["sales", "date", "region"])
-
-# Aggregate sales by date + region
-df = df.groupby(["date", "region"], as_index=False)["sales"].sum()
-df = df.sort_values("date")
-
-# -----------------------------
-# Cutoff date
-# -----------------------------
-cutoff_date = pd.to_datetime("2021-01-15")
-
-# -----------------------------
-# Dash app
-# -----------------------------
-app = Dash(__name__)
-
+# App layout
 app.layout = html.Div([
-    html.H1("Pink Morsel Sales Visualiser", style={'textAlign': 'center'}),
-    
-    html.Label("Select Region(s):", style={'fontWeight': 'bold'}),
-    dcc.Dropdown(
-        options=[{'label': r.title(), 'value': r} for r in df["region"].unique()],
-        value=list(df["region"].unique()),  # default = all regions
-        multi=True,
-        id="region-filter"
-    ),
-    
-    dcc.Graph(id="sales-graph"),
-    html.Div(id="summary", style={'textAlign': 'center', 'marginTop': '20px', 'fontSize': '18px'})
+    html.H1("Pink Morsel Sales Visualiser", style={"textAlign": "center"}),
+
+    html.Div([
+        html.Label("Select Region:", style={"fontWeight": "bold"}),
+        dcc.RadioItems(
+            id="region-selector",
+            options=[
+                {"label": "All", "value": "all"},
+                {"label": "North", "value": "north"},
+                {"label": "East", "value": "east"},
+                {"label": "South", "value": "south"},
+                {"label": "West", "value": "west"}
+            ],
+            value="all",
+            labelStyle={"display": "inline-block", "margin": "0 10px"}
+        )
+    ], style={"textAlign": "center", "marginBottom": "20px"}),
+
+    dcc.Graph(id="sales-line-chart")
 ])
 
-# -----------------------------
-# Callbacks
-# -----------------------------
+# Callback for interactivity
 @app.callback(
-    [Output("sales-graph", "figure"),
-     Output("summary", "children")],
-    [Input("region-filter", "value")]
+    Output("sales-line-chart", "figure"),
+    Input("region-selector", "value")
 )
-def update_graph(selected_regions):
-    filtered = df[df["region"].isin(selected_regions)]
-    
-    # Pre/post averages
-    pre_avg = filtered[filtered["date"] < cutoff_date]["sales"].mean()
-    post_avg = filtered[filtered["date"] >= cutoff_date]["sales"].mean()
-    change = ((post_avg - pre_avg) / pre_avg * 100) if pre_avg else 0
-    
-    # Line chart
+def update_chart(selected_region):
+    if selected_region == "all":
+        filtered_df = df
+    else:
+        filtered_df = df[df["region"] == selected_region]
+
+    # Use color parameter to differentiate regions
     fig = px.line(
-        filtered,
+        filtered_df,
         x="date",
         y="sales",
-        color="region",
-        title="Pink Morsel Sales Over Time",
-        labels={"sales": "Total Sales ($)", "date": "Date"}
+        color="region" if selected_region == "all" else None,  # color by region only if "all" is selected
+        title=f"Sales Over Time ({selected_region.capitalize()})"
     )
 
-    # Vertical line (price increase)
-    fig.add_shape(
-        type="line",
-        x0=cutoff_date,
-        x1=cutoff_date,
-        y0=0,
-        y1=1,
-        xref="x",
-        yref="paper",
-        line=dict(color="red", dash="dash")
+    # Add vertical line for price increase (15 Jan 2021)
+    fig.add_vline(
+        x="2021-01-15",
+        line_width=2,
+        line_dash="dash",
+        line_color="red"
     )
-    fig.add_annotation(
-        x=cutoff_date,
-        y=1,
-        xref="x",
-        yref="paper",
-        text="Price Increase",
-        showarrow=False,
-        yanchor="bottom",
-        font=dict(color="red")
+
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Sales",
+        template="plotly_white"
     )
-    
-    # Avg lines
-    if not pd.isna(pre_avg):
-        fig.add_hline(
-            y=pre_avg,
-            line_dash="dot",
-            line_color="blue",
-            annotation_text="Avg Before",
-            annotation_position="bottom right"
-        )
-    if not pd.isna(post_avg):
-        fig.add_hline(
-            y=post_avg,
-            line_dash="dot",
-            line_color="green",
-            annotation_text="Avg After",
-            annotation_position="top right"
-        )
-    
-    fig.update_layout(template="plotly_white", title_x=0.5, margin=dict(l=50, r=50, t=80, b=50))
-    
-    # Summary text
-    summary_text = f"Average sales {'increased' if change>=0 else 'decreased'} by {abs(change):.1f}% after the price rise"
-    
-    return fig, summary_text
+    return fig
+
 
 if __name__ == "__main__":
     app.run(debug=True)
