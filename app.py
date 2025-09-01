@@ -15,8 +15,8 @@ app.layout = html.Div([
 
     html.Div([
         html.Label("Select Region:", style={"fontWeight": "bold"}),
-        dcc.RadioItems(
-            id="region-selector",
+        dcc.Dropdown(
+            id="region-picker",
             options=[
                 {"label": "All", "value": "all"},
                 {"label": "North", "value": "north"},
@@ -25,17 +25,17 @@ app.layout = html.Div([
                 {"label": "West", "value": "west"}
             ],
             value="all",
-            labelStyle={"display": "inline-block", "margin": "0 10px"}
+            clearable=False
         )
-    ], style={"textAlign": "center", "marginBottom": "20px"}),
+    ], style={"textAlign": "center", "marginBottom": "20px", "width": "50%", "margin": "auto"}),
 
-    dcc.Graph(id="sales-line-chart")
+    dcc.Graph(id="sales-graph")
 ])
 
 # Callback for interactivity
 @app.callback(
-    Output("sales-line-chart", "figure"),
-    Input("region-selector", "value")
+    Output("sales-graph", "figure"),
+    Input("region-picker", "value")
 )
 def update_chart(selected_region):
     if selected_region == "all":
@@ -48,7 +48,7 @@ def update_chart(selected_region):
         filtered_df,
         x="date",
         y="sales",
-        color="region" if selected_region == "all" else None,  # color by region only if "all" is selected
+        color="region" if selected_region == "all" else None,
         title=f"Sales Over Time ({selected_region.capitalize()})"
     )
 
